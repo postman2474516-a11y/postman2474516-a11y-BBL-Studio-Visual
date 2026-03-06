@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BBL Studio - 独立可视化版</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a0a2e 50%, #0a1a2e 100%);
+            min-height: 100vh;
+            color: #00ff88;
+            font-size: 14px;
+            overflow-x: hidden;
+        }
+        
+        .grid-bg {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-image: linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: 0;
+        }
+        
+        .scanlines {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: repeating-linear-gradient(0deg, rgba(0,0,0,0.1), rgba(0,0,0,0.1) 1px, transparent 1px, transparent 2px);
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        .container {
+            position: relative;
+            z-index: 1;
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+        
+        .header h1 {
+            font-size: 32px;
+            color: #00ff88;
+            text-shadow: 0 0 10px #00ff88, 0 0 20px #00ff88;
+            letter-spacing: 2px;
+        }
+        
+        .header p {
+            color: #00cccc;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: rgba(0, 255, 136, 0.05);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .card h3 {
+            color: #00ff88;
+            font-size: 18px;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+        }
+        
+        .card .status {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .card .status.online {
+            color: #00ff88;
+            text-shadow: 0 0 10px #00ff88;
+        }
+        
+        .card .status.offline {
+            color: #ff6b6b;
+        }
+        
+        .card .info {
+            font-size: 12px;
+            color: #cccccc;
+            line-height: 1.8;
+        }
+        
+        .dragon-panel {
+            background: rgba(255, 107, 67, 0.1);
+            border: 2px solid #ff6b43;
+            border-radius: 15px;
+            padding: 25px;
+            margin: 30px 0;
+            box-shadow: 0 0 30px rgba(255, 107, 67, 0.2);
+        }
+        
+        .dragon-panel h2 {
+            color: #ff6b43;
+            font-size: 28px;
+            text-align: center;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px #ff6b43;
+        }
+        
+        .dragon-score {
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .dragon-score .number {
+            font-size: 72px;
+            font-weight: bold;
+            color: #ff6b43;
+            text-shadow: 0 0 20px #ff6b43;
+        }
+        
+        .dragon-score .label {
+            font-size: 16px;
+            color: #ff9f43;
+            margin-top: 10px;
+        }
+        
+        .agent-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+            margin: 30px 0;
+        }
+        
+        .agent-card {
+            background: rgba(0, 204, 204, 0.05);
+            border: 1px solid rgba(0, 204, 204, 0.2);
+            border-radius: 8px;
+            padding: 15px;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .agent-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 204, 204, 0.2);
+        }
+        
+        .agent-card .name {
+            font-size: 16px;
+            font-weight: bold;
+            color: #00cccc;
+            margin-bottom: 8px;
+        }
+        
+        .agent-card .role {
+            font-size: 12px;
+            color: #888888;
+            margin-bottom: 10px;
+        }
+        
+        .agent-card .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .agent-card .status.online {
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+            border: 1px solid #00ff88;
+        }
+        
+        .agent-card .status.working {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+            border: 1px solid #ffc107;
+            animation: blink 2s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        @keyframes glow {
+            from {
+                text-shadow: 0 0 10px #00ff88, 0 0 20px #00ff88;
+            }
+            to {
+                text-shadow: 0 0 20px #00ff88, 0 0 30px #00ff88;
+            }
+        }
+        
+        .metrics-panel {
+            margin: 30px 0;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+        }
+        
+        .metrics-panel h2 {
+            color: #00ff88;
+            margin-bottom: 20px;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .metric-item {
+            text-align: center;
+            padding: 15px;
+            background: rgba(0, 255, 136, 0.05);
+            border-radius: 8px;
+        }
+        
+        .metric-item .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00ff88;
+            margin-bottom: 5px;
+        }
+        
+        .metric-item .label {
+            font-size: 12px;
+            color: #cccccc;
+        }
+        
+        .log-panel {
+            margin: 30px 0;
+            max-height: 400px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+        }
+        
+        .log-panel h2 {
+            color: #00ff88;
+            margin-bottom: 15px;
+        }
+        
+        .log-panel .entry {
+            font-size: 12px;
+            color: #cccccc;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .log-panel .entry .time {
+            color: #888888;
+            margin-right: 10px;
+        }
+        
+        .log-panel .entry .type {
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        .log-panel .entry .type.info {
+            color: #00cccc;
+        }
+        
+        .log-panel .entry .type.success {
+            color: #00ff88;
+        }
+        
+        .log-panel .entry .type.warning {
+            color: #ffc107;
+        }
+        
+        .log-panel .entry .type.error {
+            color: #ff6b6b;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+        }
+        
+        .footer p {
+            color: #888888;
+            font-size: 12px;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 136, 0.3);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 255, 136, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="grid-bg"></div>
+    <div class="scanlines"></div>
+    
+    <div class="container">
+        <!-- 头部 -->
+        <div class="header">
+            <h1>🐉 BBL Studio 屠龙刀可视化</h1>
+            <p>Black Box Lab 投研工作室 - 独立版</p>
+            <p>当前时间: <span id="currentTime">--</span></p>
+        </div>
+        
+        <!-- 系统状态 -->
+        <div class="status-grid">
+            <div class="card">
+                <h3>系统状态</h3>
+                <div class="status online">运行中</div>
+                <div class="info">
+                    启动时间: <span id="uptime">--</span><br>
+                    运行时长: <span id="duration">--</span><br>
+                    连接数: <span id="connections">0</span>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>市场状态</h3>
+                <div class="status" style="color: #00cccc;">已收盘</div>
+                <div class="info">
+                    上证指数: <span id="shIndex">--</span><br>
+                    深证成指: <span id="szIndex">--</span><br>
+                    创业板指: <span id="cybIndex">--</span>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>数据源</h3>
+                <div class="status online">模拟模式</div>
+                <div class="info">
+                    模式: 模拟数据<br>
+                    更新频率: 实时<br>
+                    数据延迟: < 1秒
+                </div>
+            </div>
+        </div>
+        
+        <!-- 屠龙刀面板 -->
+        <div class="dragon-panel">
+            <h2>🐉 屠龙刀 - 龙头股识别</h2>
+            
+            <div class="dragon-score">
+                <div class="number">92.5</div>
+                <div class="label">龙头指数</div>
+            </div>
+            
+            <div class="status-grid">
+                <div class="card" style="border-color: #ff6b43;">
+                    <h3 style="color: #ff6b43; font-size: 16px;">👑 市场龙头</h3>
+                    <div class="info">
+                        股票: <span style="color: #ff6b43; font-weight: bold;">宁德时代 (300750)</span><br>
+                        涨幅: <span style="color: #00ff88;">+5.2%</span><br>
+                        分数: <span style="color: #ff6b43;">92.5分</span>
+                    </div>
+                </div>
+                
+                <div class="card" style="border-color: #00cccc;">
+                    <h3 style="color: #00cccc; font-size: 16px;">💎 潜力龙头</h3>
+                    <div class="info">
+                        股票: <span style="color: #00cccc; font-weight: bold;">景嘉微 (300474)</span><br>
+                        涨幅: <span style="color: #00ff88;">+4.8%</span><br>
+                        分数: <span style="color: #00cccc;">88.2分</span>
+                    </div>
+                </div>
+                
+                <div class="card" style="border-color: #00ff88;">
+                    <h3 style="color: #00ff88; font-size: 16px;">🌟 热门板块</h3>
+                    <div class="info">
+                        板块: <span style="color: #00ff88; font-weight: bold;">新能源</span><br>
+                        涨幅: <span style="color: #00ff88;">+6.3%</span><br>
+                        领涨: <span style="color: #00ff88;">宁德时代</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Agent列表 -->
+        <div class="agent-list">
+            <div class="agent-card">
+                <div class="name">🐉 Dragon Slayer</div>
+                <div class="role">龙头识别大师</div>
+                <div class="status online">在线</div>
+                <div class="info">
+                    龙头股识别<br>
+                    评分计算<br>
+                    排名更新
+                </div>
+            </div>
+            
+            <div class="agent-card">
+                <div class="name">📡 Market Radar</div>
+                <div class="role">市场监测专家</div>
+                <div class="status online">在线</div>
+                <div class="info">
+                    市场概况扫描<br>
+                    涨跌停监测<br>
+                    情绪分析
+                </div>
+            </div>
+            
+            <div class="agent-card">
+                <div class="name">🔮 Intelligence</div>
+                <div class="role">新闻分析专家</div>
+                <div class="status online">在线</div>
+                <div class="info">
+                    新闻情感分析<br>
+                    情报收集<br>
+                    资讯筛选
+                </div>
+            </div>
+            
+            <div class="agent-card">
+                <div class="name">⚡ Strategist</div>
+                <div class="role">策略生成专家</div>
+                <div class="status working">工作中</div>
+                <div class="info">
+                    投资策略生成<br>
+                    多策略推荐<br>
+                    风险评估
+                </div>
+            </div>
+            
+            <div class="agent-card">
+                <div class="name">⚠️ Risk Officer</div>
+                <div class="role">风险评估专家</div>
+                <div class="status online">在线</div>
+                <div class="info">
+                    风险等级评估<br>
+                    止损建议<br>
+                    仓位管理
+                </div>
+            </div>
+            
+            <div class="agent-card">
+                <div class="name">📝 Recorder</div>
+                <div class="role">数据记录专家</div>
+                <div class="status online">在线</div>
+                <div class="info">
+                    交易信号记录<br>
+                    性能统计<br>
+                    历史数据
+                </div>
+            </div>
+            
+            <div class="agent-card">
+                <div class="name">📨 Messenger</div>
+                <div class="role">消息推送专家</div>
+                <div class="status online">在线</div>
+                <div class="info">
+                    飞书推送<br>
+                    邮件通知<br>
+                    即时提醒
+                </div>
+            </div>
+            
+            <div class="agent-card">
+                <div class="name">👑 TaskMaster</div>
+                <div class="role">任务管理专家</div>
+                <div class="status working">工作中</div>
+                <div class="info">
+                    任务协调<br>
+                    进度跟踪<br>
+                    智能调度
+                </div>
+            </div>
+            
+            <div class="agent-card">
+                <div class="name">📊 Market Analyzer</div>
+                <div class="role">市场分析专家</div>
+                <div class="status working">工作中</div>
+                <div class="info">
+                    早盘分析<br>
+                    盘中分析<br>
+                    盘后分析
+                </div>
+            </div>
+        </div>
+        
+        <!-- 系统指标 -->
+        <div class="metrics-panel">
+            <h2>📊 系统指标</h2>
+            
+            <div class="metrics-grid">
+                <div class="metric-item">
+                    <div class="value">10</div>
+                    <div class="label">Agent总数</div>
+                </div>
+                
+                <div class="metric-item">
+                    <div class="value">15</div>
+                    <div class="label">服务系统</div>
+                </div>
+                
+                <div class="metric-item">
+                    <div class="value">10</div>
+                    <div class="label">屠龙刀心法</div>
+                </div>
+                
+                <div class="metric-item">
+                    <div class="value">5</div>
+                    <div class="label">独立战法</div>
+                </div>
+                
+                <div class="metric-item">
+                    <div class="value">92%</div>
+                    <div class="label">系统健康度</div>
+                </div>
+                
+                <div class="metric-item">
+                    <div class="value"><1s</div>
+                    <div class="label">响应时间</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 实时日志 -->
+        <div class="log-panel">
+            <h2>📝 实时日志</h2>
+            <div id="logEntries">
+                <div class="entry">
+                    <span class="time">21:12:45</span>
+                    <span class="type success">[SUCCESS]</span>
+                    <span class="message">屠龙刀心法初始化完成: 10条核心原则</span>
+                </div>
+                <div class="entry">
+                    <span class="time">21:12:47</span>
+                    <span class="type success">[SUCCESS]</span>
+                    <span class="message">理论体系初始化完成: 趋势跟踪、反转交易、成交量分析</span>
+                </div>
+                <div class="entry">
+                    <span class="time">21:12:49</span>
+                    <span class="type success">[SUCCESS]</span>
+                    <span class="message">案例库初始化完成: 成功2个, 失败2个, 经典2个</span>
+                </div>
+                <div class="entry">
+                    <span class="time">21:12:51</span>
+                    <span class="type success">[SUCCESS]</span>
+                    <span class="message">战法系统初始化完成: 主战法5个, 备用战法2个</span>
+                </div>
+                <div class="entry">
+                    <span class="time">21:12:53</span>
+                    <span class="type success">[SUCCESS]</span>
+                    <span class="message">定时调度器启动完成: 早盘9:00, 盘后15:30, 周末10:00</span>
+                </div>
+                <div class="entry">
+                    <span class="time">21:12:55</span>
+                    <span class="type info">[INFO]</span>
+                    <span class="message">市场雷达Agent扫描市场完成: 发现3个异动股票</span>
+                </div>
+                <div class="entry">
+                    <span class="time">21:12:57</span>
+                    <span class="type warning">[WARNING]</span>
+                    <span class="message">Dragon Slayer发现新龙头股: 宁德时代 (300750), 龙头指数92.5</span>
+                </div>
+                <div class="entry">
+                    <span class="time">21:12:59</span>
+                    <span class="type info">[INFO]</span>
+                    <span class="message">SignalGenerator生成买入信号: 宁德时代, 置信度85%</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 页脚 -->
+        <div class="footer">
+            <p>🎮 BBL Studio 屠龙刀版 - v3.2</p>
+            <p>Black Box Lab 投研工作室</p>
+            <p>独立可视化界面 - 无需服务器</p>
+        </div>
+    </div>
+    
+    <script>
+        // 模拟数据生成器
+        function generateData() {
+            // 当前时间
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleString('zh-CN');
+            
+            // 系统启动时间（模拟）
+            const startTime = new Date(now - 3600000 * 8.5); // 8.5小时前
+            document.getElementById('uptime').textContent = startTime.toLocaleString('zh-CN');
+            
+            // 运行时长
+            const duration = Math.floor((now - startTime) / 1000 / 60);
+            document.getElementById('duration').textContent = `${duration}分钟`;
+            
+            // 随机生成指数
+            function randomIndex(base) {
+                return (base + (Math.random() - 0.5) * 200).toFixed(2);
+            }
+            
+            document.getElementById('shIndex').textContent = randomIndex(3050);
+            document.getElementById('szIndex').textContent = randomIndex(10200);
+            document.getElementById('cybIndex').textContent = randomIndex(1900);
+            
+            // 随机生成连接数
+            document.getElementById('connections').textContent = Math.floor(Math.random() * 10 + 1);
+        }
+        
+        // 日志模拟器
+        function addLogEntry() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('zh-CN', { hour12: false });
+            
+            const types = ['success', 'info', 'warning'];
+            const messages = [
+                { type: 'success', message: 'Dragon Slayer更新龙头股排名' },
+                { type: 'info', message: 'Market Radar扫描市场完成' },
+                { type: 'warning', message: 'Risk Officer检测到市场风险增加' },
+                { type: 'info', message: 'Strategist生成新投资策略' },
+                { type: 'success', message: 'Messenger推送交易信号到飞书' },
+                { type: 'info', message: 'TaskMaster协调Agent任务' },
+                { type: 'success', message: 'SignalGenerator生成买入信号' }
+            ];
+            
+            const entry = messages[Math.floor(Math.random() * messages.length)];
+            
+            const logEntries = document.getElementById('logEntries');
+            const div = document.createElement('div');
+            div.className = 'entry';
+            div.innerHTML = `
+                <span class="time">${timeStr}</span>
+                <span class="type ${entry.type}">[${entry.type.toUpperCase()}]</span>
+                <span class="message">${entry.message}</span>
+            `;
+            
+            logEntries.insertBefore(div, logEntries.firstChild);
+            
+            // 限制日志条数
+            if (logEntries.children.length > 10) {
+                logEntries.removeChild(logEntries.lastChild);
+            }
+        }
+        
+        // 定时更新
+        generateData();
+        setInterval(generateData, 5000); // 每5秒更新数据
+        setInterval(addLogEntry, 8000); // 每8秒添加日志
+        
+        // Agent状态模拟
+        function simulateAgentStatus() {
+            const cards = document.querySelectorAll('.agent-card .status');
+            cards.forEach(card => {
+                const random = Math.random();
+                if (random > 0.7) {
+                    card.className = 'status working';
+                    card.textContent = '工作中';
+                } else {
+                    card.className = 'status online';
+                    card.textContent = '在线';
+                }
+            });
+        }
+        
+        setInterval(simulateAgentStatus, 10000); // 每10秒更新Agent状态
+    </script>
+</body>
+</html>
